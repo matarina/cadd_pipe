@@ -1,0 +1,7 @@
+git clone https://github.com/wanhebin/clash-for-linux.git
+cd clash-for-linux
+echo "export CLASH_URL='https://v1.dogapi.yachts/api/v1/client/subscribe?token=48ea3f6bc8d166afeb58d9fd0ee0e7bf'" > .env
+sed '1,2d' .env
+sudo bash start.sh
+source /etc/profile.d/clash.sh
+proxy_on
