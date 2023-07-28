@@ -1,0 +1,2 @@
+python create_patches_fp.py --source /hy-tmp/raw/ --save_dir /hy-tmp/patchout/ --patch_size 256 --preset tcga.csv --seg --patch --stitch
+CUDA_VISIBLE_DEVICES=0 python extract_features_fp.py --data_h5_dir /hy-tmp/patchout/ --data_slide_dir /hy-tmp/raw/ --csv_path /hy-tmp/patchout/process_list_autogen.csv --feat_dir /hy-tmp/fea/ --batch_size 512 --slide_ext .svs
