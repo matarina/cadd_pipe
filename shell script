@@ -1,2 +1,0 @@
-#gdc download script
-./gdc-client download --no-annotations   --no-related-files   -n 100   --debug   -m  ./mani.txt -d ./tcga 
