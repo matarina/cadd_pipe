@@ -1,0 +1,16 @@
+#!/usr/bin/bash
+#first create a new prefix with custom
+export WINEARCH=win32 
+export WINEPREFIX=/home/ma/wineprefix/ 
+export LC_ALL="zh_CN.UTF8" 
+export LAN="zh_CN.UTF8"
+export LANGUAGE="zh_CN.UTF8"
+#run winecfg will show a chinese ui front
+winecfg
+
+
+#in the same terminal with env var above, 
+#then install winetricks and install chinse font
+winetricks cjkfonts vcrun2022 riched20
+
+wine ./**.exe
