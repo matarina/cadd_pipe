@@ -1,0 +1,150 @@
+    问题描述
+    安装外部公共仓的开源镜像时，比如sudo docker pull mysql，出现如下报错提示：
+
+    $ sudo docker pull mysql
+
+    Using default tag: latest
+    Error response from daemon: Get "https://registry-1.docker.io/v2/": net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+        1
+        2
+        3
+        4
+
+    报错原因
+    大概率是因为docker的proxy代理没有配置或没有配置正确。有些公司，是需要通过配置proxy才能访问外网，且docker不能直接依赖基础操作系统环境的proxy，因此需要独立配置属于docker的proxy才能访问外网。
+
+2.docker proxy配置
+2.1.配置daemon.json文件
+
+    （1）打开daemon.json文件
+    如果没有该文件，可直接创建。参考命令如下：
+
+    sudo mkdir -p /etc/docker
+    sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+    sudo vim /etc/docker/daemon.json
+        1
+        2
+        3
+
+    （2）修改daemon.json文件
+    将如下内容粘贴到daemon.json文件中。
+
+    {
+      "registry-mirrors": [
+        "https://dockerhub.azk8s.cn",
+        "https://docker.mirrors.ustc.edu.cn",
+        "http://hub-mirror.c.163.com",
+        "https://k8s.gcr.io",
+        "https://github-releases.githubusercontent.com",
+        "https://ustc-edu-cn.mirror.aliyuncs.com"
+      ],
+      "insecure-registries": [
+        "registry.me:5000",
+        "http://docker.mirrors.ustc.edu.cn",
+        "https://k8s.gcr.io",
+        "https://github-releases.githubusercontent.com",
+        "https://registry-1.docker.io",
+        "decs.com"
+      ],
+      "exec-opts": [
+        "native.cgroupdriver=systemd"
+      ]
+    }
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+        11
+        12
+        13
+        14
+        15
+        16
+        17
+        18
+        19
+        20
+        21
+
+2.2.配置docker代理文件
+
+    （1）打开http-proxy.conf文件
+    如果该文件不在，可自行创建，命令如下：
+
+    sudo mkdir -p /etc/systemd/system/docker.service.d
+    sudo vim /etc/systemd/system/docker.service.d/http-proxy.conf
+        1
+        2
+
+    （2）修改http-proxy.conf文件
+    在http-proxy.conf文件配置proxy信息，如下：
+
+    [Service]
+    Environment="HTTP_PROXY=http://账号:密码@proxy.xxx.com:8080/"
+    Environment="HTTPS_PROXY=http://账号:密码@proxy.xxx.com:8080/"
+    Environment="NO_PROXY=decs.com,localhost,127.0.0.1"
+        1
+        2
+        3
+        4
+
+        注意，重要事情说3遍：
+        密码不要转义，哪怕有@之类的特殊符号，都是直接填写裸密码！
+        密码不要转义，哪怕有@之类的特殊符号，都是直接填写裸密码！
+        密码不要转义，哪怕有@之类的特殊符号，都是直接填写裸密码！
+
+3.重启docker，查看proxy是否配成功
+
+    （1）重启docker
+
+    sudo systemctl daemon-reload
+    sudo systemctl restart docker
+        1
+        2
+
+    （2）查看proxy是否配置成功
+
+    sudo systemctl show --property=Environment docker
+        1
+
+        如果proxy配置成功，则显示如下结果
+        Environment=HTTP_PROXY=http://账号:密码@proxy.xxx.com:8080/ HTTPS_PROXY=http://账号:密码@proxy.xxx.com:8080/ NO_PROXY=decs.com,localhost,127.0.0.1
+        如果proxy配置失败，则显示如下结果
+        Environment=
+        如果出现该情况，应该是proxy的格式不正确，比如用了转义字符等原因。
+
+4.测试拉取镜像
+
+    拉取ubuntu镜像
+    不出意外的话，应该很快速的得到如下结果：
+
+$ sudo docker pull ubuntu
+
+Using default tag: latest
+latest: Pulling from library/ubuntu
+31e907dcc94a: Pull complete
+Digest: sha256:8a37d68f4f73ebf3d4efafbcf66379bf3728902a8038616808f04e34a9ab63ee
+Status: Downloaded newer image for ubuntu:latest
+docker.io/library/ubuntu:latest
+
+    1
+    2
+    3
+    4
+    5
+    6
+    7
+    8
+
+
+————————————————
+
+                            版权声明：本文为博主原创文章，遵循 CC 4.0 BY-SA 版权协议，转载请附上原文出处链接和本声明。
+                        
+原文链接：https://blog.csdn.net/m624197265/article/details/141719515
