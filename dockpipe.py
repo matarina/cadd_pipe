@@ -166,9 +166,48 @@ def interaction_analysis(protein_pdb, ligand_pdbqt_output, prefix=''):
     
     # Run on your poses
     fp.run_from_iterable([ligand_mol], protein_mol)
-    df = fp.to_dataframe()
-    print(df.T)
-    df.T.to_csv(f"{prefix}ligand_interactions.csv", index=True)
+    # Create an empty list to store all interaction details
+    interaction_details = []
+
+    # Get the frame index (0 in this case)
+    frame = 0
+
+    # Iterate through all residue pairs in the fingerprint data
+    for residue_pair in fp.ifp[frame].keys():
+        ligand_res, protein_res = residue_pair
+        
+        # Get all interactions for this residue pair
+        interactions = fp.ifp[frame][residue_pair]
+        
+        # Iterate through each interaction type (HBDonor, Cationic, etc.)
+        for interaction_type, details_tuple in interactions.items():
+            # Each interaction might have multiple instances (stored as a tuple)
+            for details in details_tuple:
+                # Create a basic record for this interaction
+                record = {
+                    'frame': frame,
+                    'ligand': ligand_res,
+                    'protein': protein_res,
+                    'interaction': interaction_type
+                }
+                
+                # Add the distance and any other metrics (excluding indices)
+                for key, value in details.items():
+                    if key not in ['indices', 'parent_indices']:
+                        record[key] = value
+                
+                # Add this record to our collection
+                interaction_details.append(record)
+
+    # Convert to DataFrame
+    result_df = pd.DataFrame(interaction_details)
+
+    # Save to CSV
+    result_df.to_csv(f'{prefix}protein_ligand_interactions.csv', index=False)
+
+    # Display the first few rows
+    print(result_df.head())
+
     
     # Save the plot to an HTML file
     html_output = fp.plot_lignetwork(ligand_mol, kind="frame", frame=0, width='1800px', height='1000px')
@@ -219,7 +258,7 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
     
     full_py_version = platform.python_version()
     major_and_minor = ".".join(full_py_version.split(".")[:2])
-    env_path = Path("/data/opus/.pixi/envs/dock/")
+    env_path = Path("/data/opus/.pixi/envs/dock/") #replace with your environment path like conda
     reduce2_path = f"lib/python{major_and_minor}/site-packages/mmtbx/command_line/reduce2.py"
     try:
         reduce2 = locate_file(from_path=env_path, query_path=reduce2_path, query_name="reduce2.py")
