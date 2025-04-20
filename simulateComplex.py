@@ -1,5 +1,6 @@
 """
 Run a MD simulation for a complex, optionally adding a solvent box
+https://github.com/tdudgeon/simple-simulate-complex modified version
 """
 
 import sys, time, argparse
