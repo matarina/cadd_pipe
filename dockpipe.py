@@ -19,7 +19,6 @@ import pandas as pd
 import multiprocessing
 import glob
 import MDAnalysis as mda
-import subprocess
 import prolif as plf
 
 
@@ -28,17 +27,9 @@ import rdkit
 from rdkit import Chem
 from rdkit.Chem import AllChem, Descriptors3D
 
+reduce2_path = Path("/data/opus/.pixi/envs/pymol/lib/python3.10/site-packages/mmtbx/command_line/reduce2.py") #replace with your environment path like conda
+geostd_path = Path("/data/opus/dock/geostd") #replace with your environment path like conda
 # Helper functions
-def locate_file(from_path=None, query_path=None, query_name="query file"):
-    """Locate a file in the given path."""
-    if not from_path or not query_path:
-        raise ValueError("Must specify from_path and query_path")
-    possible_path = list(from_path.glob(query_path))
-    if not possible_path:
-        raise FileNotFoundError(f"Cannot find {query_name} from {from_path} by {query_path}")
-    print(f"Using {query_name} at:\n{possible_path[0]}\n")
-    return possible_path[0]
-
 def run_command(command):
     """Executes a shell command and prints stdout/stderr."""
     print(f"Executing: {command}")
@@ -238,7 +229,7 @@ def parse_vina_score(output_file):
         print(f"Error parsing Vina score from {output_file}: {e}")
     return best_score
 
-def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''):
+def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix='', chain ='A'):
     """
     Main function to perform the complete docking workflow with grid box optimization.
     It prepares the ligand, calculates the optimal box size from its radius-of-gyration,
@@ -258,18 +249,6 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
     
     full_py_version = platform.python_version()
     major_and_minor = ".".join(full_py_version.split(".")[:2])
-    env_path = Path("/data/opus/.pixi/envs/dock/") #replace with your environment path like conda
-    reduce2_path = f"lib/python{major_and_minor}/site-packages/mmtbx/command_line/reduce2.py"
-    try:
-        reduce2 = locate_file(from_path=env_path, query_path=reduce2_path, query_name="reduce2.py")
-    except FileNotFoundError:
-        print("Warning: reduce2.py not found at expected path. Assuming it's in PATH.")
-        reduce2 = "reduce2.py"
-    try:
-        geostd_path = locate_file(from_path=Path.cwd(), query_path="geostd", query_name="geostd")
-    except FileNotFoundError:
-        print("Warning: 'geostd' not found in the current working directory.")
-        geostd_path = Path.cwd() / "geostd"
     
     # 1. Ligand Preparation
     print("\n# 1. Ligand Preparation")
@@ -304,7 +283,7 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
     # 5. Receptor Preparation
     print("\n# 5. Receptor Preparation")
     atoms_from_pdb = parsePDB(pdb_file)
-    receptor_selection = "protein and not water and not hetero"
+    receptor_selection = f"protein and chain {chain} not water and not hetero"
     receptor_atoms = atoms_from_pdb.select(receptor_selection)
     prody_receptor_pdb = f"{prefix}{pdb_id}_receptor_atoms.pdb"
     writePDB(prody_receptor_pdb, receptor_atoms)
@@ -329,8 +308,35 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
     env = os.environ.copy()
     env['MMTBX_CCP4_MONOMER_LIB'] = str(geostd_path)
     opts_list = reduce_opts.split()
-    cmd_reduce = [sys.executable, str(reduce2), str(reduce_input_pdb)] + opts_list
-    subprocess.run(cmd_reduce, env=env, check=True, capture_output=True, text=True)
+    cmd_reduce = [sys.executable, str(reduce2_path), str(reduce_input_pdb)] + opts_list
+    
+    try:
+        # Execute the command, checking for errors and capturing output
+        completed_process = subprocess.run(
+            cmd_reduce,
+            env=env,
+            check=True,           # Raise an exception if the command fails
+            capture_output=True,  # Capture stdout and stderr
+            text=True             # Decode stdout/stderr as text
+        )
+        # If the command succeeds, you can optionally print its output
+        print("Command executed successfully:")
+        if completed_process.stdout:
+            print("STDOUT:\n", completed_process.stdout)
+        if completed_process.stderr:
+            print("STDERR:\n", completed_process.stderr)
+
+    except subprocess.CalledProcessError as e:
+        # If the command fails (non-zero exit status), catch the exception
+        print(f"Command '{' '.join(e.cmd)}' failed with return code {e.returncode}")
+        # Print the captured standard output (if any)
+        if e.stdout:
+            print("Captured STDOUT:\n", e.stdout)
+        # Print the captured standard error (this usually contains the error message)
+        if e.stderr:
+            print("Captured STDERR (Error Details):\n", e.stderr)
+
+
     prepare_in_pdb = f"{prefix}{pdb_id}_receptorFH.pdb"
     
     best_score = None
@@ -361,6 +367,7 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
             mk_prepare_receptor,
             "-i", str(prepare_in_pdb),
             "-o", candidate_prefix,
+            "--allow_bad_res",
             "-p",
             "-v",
             "--box_center", str(center_x), str(center_y), str(center_z),
@@ -414,8 +421,9 @@ def main():
     parser.add_argument('--ph', type=float, default=7.4, help='pH for ligand preparation')
     parser.add_argument('--exhaustiveness', type=int, default=128, help='Exhaustiveness for Vina docking')
     parser.add_argument('--prefix', default='', help='Prefix to add to all output files')
+    parser.add_argument('--chain', default='A', help='Chain of protein to use for docking (default: %(default)s)')
     args = parser.parse_args()
-    perform_docking(args.pdb, args.smiles, args.ph, args.exhaustiveness, args.prefix)
+    perform_docking(args.pdb, args.smiles, args.ph, args.exhaustiveness, args.prefix, args.chain)
 
 if __name__ == "__main__":
     main()
