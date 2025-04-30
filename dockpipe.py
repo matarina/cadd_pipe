@@ -20,6 +20,8 @@ import multiprocessing
 import glob
 import MDAnalysis as mda
 import prolif as plf
+import numpy as np
+import Bio.PDB
 
 
 from prody import *
@@ -120,6 +122,64 @@ def calculate_optimal_box_size(sdf_file):
     print(f"Calculated ligand radius of gyration: {rg:.2f}")
     print(f"Optimal base box size (2.9 × Rg): {optimal_box_size:.2f}")
     return optimal_box_size
+
+def calculate_docking_box(pdb_file, buffer=5):
+    """
+    Calculates the center and size of a bounding box for all atoms in a PDB structure.
+
+    Args:
+        pdb_file (str): Path to the PDB file.
+        buffer (float, optional): Value to add to each dimension of the box size. 
+                                 Defaults to 0.
+
+    Returns:
+        tuple: A tuple containing:
+            - numpy.ndarray: The coordinates (x, y, z) of the box center.
+            - numpy.ndarray: The dimensions (size_x, size_y, size_z) of the box.
+            
+    Raises:
+        FileNotFoundError: If the pdb_file does not exist.
+        ValueError: If no atomic coordinates are found in the PDB file.
+    """
+    if not os.path.exists(pdb_file):
+        raise FileNotFoundError(f"[Errno 2] No such file or directory: '{pdb_file}'")
+        
+    parser = Bio.PDB.PDBParser(QUIET=True) # QUIET=True suppresses warnings
+    structure = parser.get_structure('protein', pdb_file)
+
+    coords = []
+    # Iterate through all atoms in the structure to collect coordinates
+    for model in structure:
+        for chain in model:
+            for residue in chain:
+                # Skip heteroatoms (like water, ligands) if needed, focusing only on protein
+                # Use residue.id[0] to check for HETATM records if required:
+                # if residue.id[0].startswith('H_'): 
+                #    continue 
+                for atom in residue:
+                    coords.append(atom.coord)
+
+    if not coords:
+        raise ValueError(f"No atomic coordinates found in PDB file: {pdb_file}")
+
+    # Convert list of coordinates to a NumPy array for vectorized operations
+    coords = np.array(coords)
+
+    # Calculate the minimum and maximum coordinates along each axis (x, y, z)
+    min_coords = coords.min(axis=0)
+    max_coords = coords.max(axis=0)
+
+    # Calculate the center of the box
+    center = (max_coords + min_coords) / 2.0
+
+    # Calculate the size (dimensions) of the box
+    size = max_coords - min_coords
+
+    # Add the specified buffer to each dimension of the size
+    size += buffer
+
+    return center, size
+
 
 
 def interaction_analysis(protein_pdb, ligand_pdbqt_output, prefix=''):
@@ -229,26 +289,15 @@ def parse_vina_score(output_file):
         print(f"Error parsing Vina score from {output_file}: {e}")
     return best_score
 
-def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix='', chain ='A'):
+def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix='', chain='A'):
     """
-    Main function to perform the complete docking workflow with grid box optimization.
-    It prepares the ligand, calculates the optimal box size from its radius-of-gyration,
-    generates candidate grid boxes, docks with Vina using all available CPUs, 
-    retains only the best docking output, and removes all intermediate files.
-    
-    Parameters:
-    - pdb_id: PDB ID for the protein
-    - ligand_smiles: SMILES string for the ligand
-    - ph: pH for ligand preparation
-    - exhaustiveness: Exhaustiveness parameter for Vina docking
-    - prefix: Prefix to add to all output files
+    Main function to perform the complete docking workflow with focused grid box combinations.
+    - Only docks PRANK center with RG-scaled box sizes
+    - Only docks protein center with protein-scaled box sizes
     """
     scrub = "scrub.py"
     mk_prepare_ligand = "mk_prepare_ligand.py"
     mk_prepare_receptor = "mk_prepare_receptor.py"
-    
-    full_py_version = platform.python_version()
-    major_and_minor = ".".join(full_py_version.split(".")[:2])
     
     # 1. Ligand Preparation
     print("\n# 1. Ligand Preparation")
@@ -261,27 +310,40 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
     cmd_prep_lig = f"{mk_prepare_ligand} -i {ligand_sdf} -o {ligand_pdbqt}"
     run_command(cmd_prep_lig)
     
-    # Calculate optimal box size from ligand SDF via radius of gyration
-    optimal_box_size = calculate_optimal_box_size(ligand_sdf)
-    # Create candidate grid box sizes
-    # candidate_sizes = [max(optimal_box_size-5, 5), optimal_box_size, optimal_box_size+3, optimal_box_size + 5, optimal_box_size + 10, optimal_box_size + 15, optimal_box_size + 20]
-    candidate_sizes = [ optimal_box_size, optimal_box_size+3]
-    print(f"Candidate grid box sizes: {', '.join(f'{s:.2f}' for s in candidate_sizes)}")
-    
     # 2. Protein Structure Download
     print("\n# 2. Protein Structure Download")
     pdb_file = download_pdb(pdb_id)
     
-    # 3. Predict Binding Pockets
-    print("\n# 3. Binding Pocket Prediction")
+    # 3. Calculate optimal box size from ligand radius of gyration
+    print("\n# 3. Calculate optimal box size from ligand radius of gyration")
+    optimal_box_size = calculate_optimal_box_size(ligand_sdf)
+    print(f"Radius-of-gyration based box size: {optimal_box_size:.2f}")
+    
+    # Define RG-scaling factors
+    rg_scale_factors = [0.8, 1.0, 1.2, 1.5]
+    rg_scaled_sizes = [optimal_box_size * factor for factor in rg_scale_factors]
+    print(f"RG-scaled box sizes: {', '.join(f'{s:.2f}' for s in rg_scaled_sizes)}")
+    
+    # 4. Predict Binding Pockets with PRANK
+    print("\n# 4. Binding Pocket Prediction using PRANK")
     prank_csv = predict_binding_pockets(pdb_file, prefix)
     
-    # 4. Extract Pocket Coordinates
-    print("\n# 4. Extract Pocket Information")
-    center_x, center_y, center_z = extract_pocket_coordinates(prank_csv)
+    # 5. Extract Pocket Coordinates from PRANK
+    print("\n# 5. Extract Pocket Information from PRANK")
+    prank_center_x, prank_center_y, prank_center_z = extract_pocket_coordinates(prank_csv)
+    print(f"PRANK-based box center: ({prank_center_x:.2f}, {prank_center_y:.2f}, {prank_center_z:.2f})")
     
-    # 5. Receptor Preparation
-    print("\n# 5. Receptor Preparation")
+    # 6. Calculate protein center and protein-based box size
+    print("\n# 6. Calculate protein center and box size")
+    protein_center, protein_box_size = calculate_docking_box(pdb_file, buffer=5)
+    print(f"Protein-based box center: ({protein_center[0]:.2f}, {protein_center[1]:.2f}, {protein_center[2]:.2f})")
+    print(f"Protein-based box size: ({protein_box_size[0]:.2f}, {protein_box_size[1]:.2f}, {protein_box_size[2]:.2f})")
+    
+    # Define protein-scaling factors
+    protein_scale_factors = [0.75, 1.0]
+    
+    # 7. Receptor Preparation
+    print("\n# 7. Receptor Preparation")
     atoms_from_pdb = parsePDB(pdb_file)
     receptor_selection = f"protein and chain {chain} not water and not hetero"
     receptor_atoms = atoms_from_pdb.select(receptor_selection)
@@ -304,6 +366,7 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
                 f.write(cryst_line)
             f.writelines(receptor_lines)
     
+    # Run reduce to add hydrogens
     reduce_opts = "approach=add add_flip_movers=True overwrite=True"
     env = os.environ.copy()
     env['MMTBX_CCP4_MONOMER_LIB'] = str(geostd_path)
@@ -311,31 +374,20 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
     cmd_reduce = [sys.executable, str(reduce2_path), str(reduce_input_pdb)] + opts_list
     
     try:
-        # Execute the command, checking for errors and capturing output
         completed_process = subprocess.run(
             cmd_reduce,
             env=env,
-            check=True,           # Raise an exception if the command fails
-            capture_output=True,  # Capture stdout and stderr
-            text=True             # Decode stdout/stderr as text
+            check=True,
+            capture_output=True,
+            text=True
         )
-        # If the command succeeds, you can optionally print its output
-        print("Command executed successfully:")
-        if completed_process.stdout:
-            print("STDOUT:\n", completed_process.stdout)
-        if completed_process.stderr:
-            print("STDERR:\n", completed_process.stderr)
-
+        print("Command executed successfully.")
     except subprocess.CalledProcessError as e:
-        # If the command fails (non-zero exit status), catch the exception
         print(f"Command '{' '.join(e.cmd)}' failed with return code {e.returncode}")
-        # Print the captured standard output (if any)
         if e.stdout:
             print("Captured STDOUT:\n", e.stdout)
-        # Print the captured standard error (this usually contains the error message)
         if e.stderr:
             print("Captured STDERR (Error Details):\n", e.stderr)
-
 
     prepare_in_pdb = f"{prefix}{pdb_id}_receptorFH.pdb"
     
@@ -346,14 +398,17 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
     cpus = multiprocessing.cpu_count()
     print(f"Using {cpus} CPU cores for Vina docking.")
     
-    # Loop over each candidate grid box size and perform docking
-    for i, candidate_size in enumerate(candidate_sizes):
-        print(f"\n# 6. Docking with Candidate {i+1} (Box size = {candidate_size:.2f})")
-        candidate_prefix = f"{prefix}{pdb_id}_receptorFH_candidate_{i+1}"
+    candidate_counter = 1
+    
+    # 8. Dock PRANK center with RG-scaled sizes only
+    for i, size in enumerate(rg_scaled_sizes):
+        print(f"\n# 8. Docking with Candidate {candidate_counter} (Center: PRANK, Size: RG-scaled-{rg_scale_factors[i]})")
+        
+        candidate_prefix = f"{prefix}{pdb_id}_receptorFH_candidate_{candidate_counter}"
         candidate_receptor = f"{candidate_prefix}.pdbqt"
         candidate_config = f"{candidate_prefix}.box.txt"
         candidate_box_pdb = f"{candidate_prefix}.box.pdb"
-        candidate_output = f"{prefix}{pdb_id}_{ligand_name}_vina_out_candidate_{i+1}.pdbqt"
+        candidate_output = f"{prefix}{pdb_id}_{ligand_name}_vina_out_candidate_{candidate_counter}.pdbqt"
         
         # Add files to the intermediate files list
         intermediate_files.extend([
@@ -363,6 +418,7 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
             candidate_output
         ])
         
+        # Prepare receptor with PRANK center and RG-scaled size
         cmd_receptor = [
             mk_prepare_receptor,
             "-i", str(prepare_in_pdb),
@@ -370,11 +426,12 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
             "--allow_bad_res",
             "-p",
             "-v",
-            "--box_center", str(center_x), str(center_y), str(center_z),
-            "--box_size", str(candidate_size), str(candidate_size), str(candidate_size)
+            "--box_center", str(prank_center_x), str(prank_center_y), str(prank_center_z),
+            "--box_size", str(size), str(size), str(size)
         ]
         subprocess.run(cmd_receptor, check=True, capture_output=True, text=True)
         
+        # Run Vina docking
         cmd_vina = [
             "vina",
             "--receptor", candidate_receptor,
@@ -382,23 +439,89 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
             "--config", candidate_config,
             "--cpu", str(cpus),
             "--exhaustiveness", str(exhaustiveness),
+            "--seed", "42",  # Added for reproducibility
             "--out", candidate_output
         ]
         subprocess.run(cmd_vina, check=True, capture_output=True, text=True)
+        
+        # Parse docking score
         score = parse_vina_score(candidate_output)
-        print(f"Candidate {i+1} docking score: {score}")
+        print(f"Candidate {candidate_counter} docking score: {score}")
+        
+        # Update best result if this candidate is better
         if score is not None and (best_score is None or score < best_score):
             best_score = score
             best_output = candidate_output
+        
+        candidate_counter += 1
+    
+    # 9. Dock protein center with protein-scaled sizes only
+    for i, factor in enumerate(protein_scale_factors):
+        print(f"\n# 9. Docking with Candidate {candidate_counter} (Center: Protein, Size: Protein-scaled-{factor})")
+        
+        candidate_prefix = f"{prefix}{pdb_id}_receptorFH_candidate_{candidate_counter}"
+        candidate_receptor = f"{candidate_prefix}.pdbqt"
+        candidate_config = f"{candidate_prefix}.box.txt"
+        candidate_box_pdb = f"{candidate_prefix}.box.pdb"
+        candidate_output = f"{prefix}{pdb_id}_{ligand_name}_vina_out_candidate_{candidate_counter}.pdbqt"
+        
+        # Add files to the intermediate files list
+        intermediate_files.extend([
+            candidate_receptor, 
+            candidate_config, 
+            candidate_box_pdb, 
+            candidate_output
+        ])
+        
+        # Scale the protein box size
+        scaled_size = [dim * factor for dim in protein_box_size]
+        
+        # Prepare receptor with protein center and protein-scaled size
+        cmd_receptor = [
+            mk_prepare_receptor,
+            "-i", str(prepare_in_pdb),
+            "-o", candidate_prefix,
+            "--allow_bad_res",
+            "-p",
+            "-v",
+            "--box_center", str(protein_center[0]), str(protein_center[1]), str(protein_center[2]),
+            "--box_size", str(scaled_size[0]), str(scaled_size[1]), str(scaled_size[2])
+        ]
+        subprocess.run(cmd_receptor, check=True, capture_output=True, text=True)
+        
+        # Run Vina docking with fixed seed
+        cmd_vina = [
+            "vina",
+            "--receptor", candidate_receptor,
+            "--ligand", ligand_pdbqt,
+            "--config", candidate_config,
+            "--cpu", str(cpus),
+            "--exhaustiveness", str(exhaustiveness),
+            "--seed", "42",  # Added for reproducibility
+            "--out", candidate_output
+        ]
+        subprocess.run(cmd_vina, check=True, capture_output=True, text=True)
+        
+        # Parse docking score with improved function
+        score = parse_vina_score(candidate_output)
+        print(f"Candidate {candidate_counter} docking score: {score}")
+        
+        # Update best result if this candidate is better
+        if score is not None and (best_score is None or score < best_score):
+            best_score = score
+            best_output = candidate_output
+        
+        candidate_counter += 1
 
+    # Process the best result
     if best_output is not None:
         final_output = f"{pdb_id}_{ligand_name}_vina_best.pdbqt"
         run_command(f"cp {best_output} {final_output}")
         print(f"\nBest docking model saved as {final_output} with score {best_score}")
         
         # Analyze protein-ligand interactions
-        print("\n# 7. Protein-Ligand Interaction Analysis")
-        prepare_in_pdb = f"{prefix}{pdb_id}_receptorFH.pdb"  # This is the prepared protein with hydrogens
+        print("\n# 10. Protein-Ligand Interaction Analysis")
+        prepare_in_pdb = f"{prefix}{pdb_id}_receptorFH.pdb"
         interaction_analysis(prepare_in_pdb, final_output, prefix)
         
         # Remove all intermediate files
@@ -413,6 +536,54 @@ def perform_docking(pdb_id, ligand_smiles, ph=7.4, exhaustiveness=128, prefix=''
         
         print(f"Removed {removed_count} intermediate files.")
         return final_output
+    else:
+        print("Error: No successful docking results found.")
+        return None
+
+# Add this improved score parsing function to fix the zero-score issue
+def parse_vina_score(output_file):
+    """Parse the Vina docking output file to extract the best (lowest) energy score."""
+    best_score = None
+    try:
+        with open(output_file, 'r') as f:
+            content = f.read()
+            # Debug - uncomment to see raw output
+            # print(f"Raw output from {output_file}:\n{content[:500]}...")
+            
+            # First try the standard format for newer Vina versions
+            for line in content.splitlines():
+                if line.startswith("REMARK VINA RESULT:"):
+                    parts = line.strip().split()
+                    if len(parts) >= 4:
+                        try:
+                            score = float(parts[3])
+                            if best_score is None or score < best_score:
+                                best_score = score
+                        except (ValueError, IndexError):
+                            continue
+            
+            # If that fails, look for the mode table format
+            if best_score is None:
+                in_table = False
+                for line in content.splitlines():
+                    if "mode |" in line and "affinity" in line:
+                        in_table = True
+                        continue
+                    if in_table and line.strip() and not line.startswith("-----"):
+                        parts = line.split('|')
+                        if len(parts) >= 2:
+                            try:
+                                score = float(parts[1].strip())
+                                if best_score is None or score < best_score:
+                                    best_score = score
+                                break  # Take only the first (best) mode
+                            except (ValueError, IndexError):
+                                continue
+    except Exception as e:
+        print(f"Error parsing Vina score from {output_file}: {e}")
+    
+    return best_score
+
 
 def main():
     parser = argparse.ArgumentParser(description='Molecular docking with binding pocket prediction and grid box optimization')
