@@ -34,7 +34,7 @@ Grafts a missing segment (e.g., a loop) from an AlphaFold model into an experime
 ## Installation Pre-requisites
 
 ### For Conda Users
-Install with `conda.yaml`:
+Install with `environment.yaml`:
 ```bash
 conda env create -f environment.yaml
 ```
@@ -42,7 +42,7 @@ conda env create -f environment.yaml
 ### For Pixi Users
 Install with `pixi.toml`:
 ```bash
-pixi shell -e easydock
+pixi shell -e easydocker
 ```
 
 ### Path Configuration
@@ -51,7 +51,7 @@ Specify the `reduce2` and `geostd` paths in the `molecular_docking.py` file at l
 self.reduce2_path = Path("/data/.pixi/envs/easydocker/lib/python3.10/site-packages/mmtbx/command_line/reduce2.py")
 self.geostd_path = Path("/data/geostd")
 ```
-- If using Pixi, locate `reduce2.py` in the `easydock` environment after installation.
+- If using Pixi, locate `reduce2.py` in the `easydocker` environment after installation.
 - Manually clone the `geostd` repository from [https://github.com/phenix-project/geostd.git](https://github.com/phenix-project/geostd.git) and set the path accordingly.
 
 ## Usage
@@ -71,7 +71,7 @@ Parameters not set via command line can be modified in the script (It is not rec
 
 #### Options
 - `--pdb <PDB_ID>`: PDB ID to download from RCSB (e.g., `11GS`). Mutually exclusive with `--local_pdb`.
-- `--local_pdb <PATH>`: Path to a local PDB file (e.g., `11GS.pdb`). Mutually exclusive with `--pdb`. for some complex protein failed to automatelly processed with --pdb, may need to manually preprocess it and save to local pdb file to process.
+- `--local_pdb <PATH>`: Path to a local PDB file (e.g., `11GS.pdb`). Mutually exclusive with `--pdb`. (For some complex proteins that fail to process automatically with `--pdb`, manual preprocessing and saving as a local PDB file may be required.)
 - `--smiles <SMILES>`: SMILES string of the ligand (required).
 - `--ph <FLOAT>`: pH for ligand preparation (default: 7.4).
 - `--exhaustiveness <INT>`: Exhaustiveness for Vina docking (default: 128).
@@ -257,6 +257,4 @@ grafted_model_optimized.pdb
 7. **Optimization** (if enabled):
    - Loads the grafted structure into PyRosetta.
    - Applies FastRelax protocol with `ref2015_cart` score function for 5 cycles.
-   - Saves the optimized structure (e.g., `grafted_model_optimized.pdb`).
-8. **Output**:
    - Provides grafted and optimized PDB files, with console output showing initial and final PyRosetta scores.
