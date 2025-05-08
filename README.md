@@ -36,7 +36,7 @@ Grafts a missing segment (e.g., a loop) from an AlphaFold model into an experime
 ### For Conda Users
 Install with `conda.yaml`:
 ```bash
-conda env create -f conda.yaml
+conda env create -f environment.yaml
 ```
 
 ### For Pixi Users
@@ -46,7 +46,7 @@ pixi shell -e easydock
 ```
 
 ### Path Configuration
-Specify the `reduce2` and `geostd` paths in the `molecular_docking.py` file:
+Specify the `reduce2` and `geostd` paths in the `molecular_docking.py` file at line 51:
 ```python
 self.reduce2_path = Path("/data/.pixi/envs/pymol/lib/python3.10/site-packages/mmtbx/command_line/reduce2.py")
 self.geostd_path = Path("/data/opus/dock/geostd")
@@ -95,29 +95,6 @@ Parameters not set via command line can be modified in the script:
    - Outputs to the `test` directory.
    - Docks to chain A.
 
-#### Example Output
-**Command**:
-```bash
-python molecular_docking.py --local_pdb 11GS.pdb --smiles "C[C@]12CC[C@H]3[C@H]([C@@H]1CC[C@@H]2C(=O)NC4=C(C=CC(=C4)C(F)(F)F)C(F)(F)F)CC[C@@H]5[C@@]3(C=CC(=O)N5)C" --prefix test --chain A
-```
-
-**Console Output** (abridged):
-```
-All output files will be saved to directory: test
-# 1. Ligand Preparation
-Executing: scrub.py "..."
-STDOUT: Scrub completed...
-# 2. Protein Structure Acquisition
-Using local PDB file: 11GS.pdb
-# 3. Calculate optimal box size from ligand radius of gyration
-Calculated ligand radius of gyration: 4.50
-Optimal base box size (2.9 × Rg): 13.05
-...
-# 10. Protein-Ligand Interaction Analysis
-Visualization files saved!
-Best docking model saved as 11GS_ligand_vina_best.pdbqt with score -7.8
-Removed 12 intermediate files.
-```
 
 **Files in `test`**:
 ```
@@ -162,33 +139,6 @@ Drug3 c1cc(c(c(c1)Cl)NC(=O)C)Cl
    python batch_docking.py --local_pdb 11GS.pdb --batch_file batch_smiles.txt --chain A
    ```
 
-#### Example Output
-**Command**:
-```bash
-python batch_docking.py --local_pdb 11GS.pdb --batch_file batch_smiles.txt --chain A
-```
-
-**Console Output** (abridged):
-```
-Found 3 compounds to dock.
-
-Processing compound 1/3
-Running docking for Drug1...
-All output files will be saved to directory: Drug1
-...
-Best docking model saved as 11GS_ligand_vina_best.pdbqt with score -7.8
-Completed docking for Drug1
-
-Processing compound 2/3
-Running docking for Drug2...
-...
-Completed docking for Drug2
-
-Processing compound 3/3
-Running docking for Drug3...
-...
-Completed docking for Drug3
-```
 
 **Directory Structure**:
 ```
@@ -238,32 +188,6 @@ python graft_protein_with_optimization.py <exp_pdb> <af_pdb> [chain_id] [missing
    python graft_protein_with_optimization.py experimental.pdb alphafold.pdb B 77 110 grafted_model.pdb
    ```
 
-#### Example Output
-**Command**:
-```bash
-python graft_protein_with_optimization.py experimental.pdb alphafold.pdb B 77 110 grafted_model.pdb
-```
-
-**Console Output** (abridged):
-```
-Starting Biopython grafting process...
-Experimental PDB: experimental.pdb
-AlphaFold PDB: alphafold.pdb
-Chain ID: B
-Missing region: 77-110
-Output file: grafted_model.pdb
-Found chain B in both structures
-Grafting residues from AlphaFold model...
-Successfully added 34 residues from AlphaFold model
-Saving grafted structure to grafted_model.pdb
-Grafting complete! AlphaFold segment (77-110) successfully added to experimental structure
-Starting structure optimization with PyRosetta...
-Loaded structure with 200 residues
-Initial score: 150.23
-Final score: 120.45
-Optimized structure saved to grafted_model_optimized.pdb
-Structure optimization complete!
-```
 
 **Files**:
 ```
