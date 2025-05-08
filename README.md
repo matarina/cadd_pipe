@@ -64,7 +64,7 @@ python molecular_docking.py [OPTIONS]
 ```
 
 #### Optional adjustable Parameters
-Parameters not set via command line can be modified in the script(It is not recommended to make adjustments unless you know what you are doing!):
+Parameters not set via command line can be modified in the script (It is not recommended to make adjustments unless you know what you are doing!) :
 - **Box Buffer**: 5 Å added to the protein-based box size.
 - **Radius of Gyration (Rg) Scale Factors**: [0.8, 1.0, 1.2, 1.5] for ligand-based box sizes.
 - **Protein Scale Factors**: [0.75, 1.0] for protein-based box sizes.
