@@ -33,7 +33,7 @@ rdkit = "2024.03.6"
 scipy = "1.15.2"
 vina = "1.2.6"
 
-[feature.pymol.pypi-dependencies]
+[feature.easydocker.pypi-dependencies]
 
 [environments]
 easydocker = { features = ["easydocker"], solve-group = "easydocker" }

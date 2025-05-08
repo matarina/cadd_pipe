@@ -48,8 +48,8 @@ pixi shell -e easydock
 ### Path Configuration
 Specify the `reduce2` and `geostd` paths in the `molecular_docking.py` file at line 51:
 ```python
-self.reduce2_path = Path("/data/.pixi/envs/pymol/lib/python3.10/site-packages/mmtbx/command_line/reduce2.py")
-self.geostd_path = Path("/data/opus/dock/geostd")
+self.reduce2_path = Path("/data/.pixi/envs/easydocker/lib/python3.10/site-packages/mmtbx/command_line/reduce2.py")
+self.geostd_path = Path("/data/geostd")
 ```
 - If using Pixi, locate `reduce2.py` in the `easydock` environment after installation.
 - Manually clone the `geostd` repository from [https://github.com/phenix-project/geostd.git](https://github.com/phenix-project/geostd.git) and set the path accordingly.
@@ -71,7 +71,7 @@ Parameters not set via command line can be modified in the script:
 
 #### Options
 - `--pdb <PDB_ID>`: PDB ID to download from RCSB (e.g., `11GS`). Mutually exclusive with `--local_pdb`.
-- `--local_pdb <PATH>`: Path to a local PDB file (e.g., `11GS.pdb`). Mutually exclusive with `--pdb`.
+- `--local_pdb <PATH>`: Path to a local PDB file (e.g., `11GS.pdb`). Mutually exclusive with `--pdb`. for some complex protein failed to automatelly processed with --pdb, may need to manually preprocess it and save to local pdb file to process.
 - `--smiles <SMILES>`: SMILES string of the ligand (required).
 - `--ph <FLOAT>`: pH for ligand preparation (default: 7.4).
 - `--exhaustiveness <INT>`: Exhaustiveness for Vina docking (default: 128).
