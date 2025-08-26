@@ -34,6 +34,10 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, Descriptors3D
 import shutil
 
+current_work_dir = Path.cwd()
+
+
+
 class MolecularDocker:
     """Class to handle molecular docking with binding pocket prediction and grid box optimization."""
     
@@ -48,8 +52,8 @@ class MolecularDocker:
         self.original_dir = os.getcwd()
         # Convert local_pdb to absolute path if provided
         self.local_pdb = os.path.abspath(local_pdb) if local_pdb else None
-        self.reduce2_path = Path("/data/opus/.pixi/envs/easydocker/lib/python3.10/site-packages/mmtbx/command_line/reduce2.py")
-        self.geostd_path = Path("/data/opus/dock/geostd")
+        self.reduce2_path = current_work_dir / ".pixi/envs/easydocker/lib/python3.10/site-packages/mmtbx/command_line/reduce2.py"
+        self.geostd_path = current_work_dir / "geostd"
         self.rg_scale_factors = [0.8, 1.0, 1.2, 1.5]
         self.protein_scale_factors = [0.75, 1.0]
         self.box_buffer = 5
