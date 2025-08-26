@@ -46,7 +46,9 @@ pixi shell -e easydocker
 ```
 
 ### Path Configuration
+
 ensure p2rank[https://github.com/rdk/p2rank] installed and command `prank` is available in env path.
+
 Specify the `geostd` paths in the `molecular_docking.py` file at line 51:
 ```python
 self.geostd_path = Path("/data/cadd_pipe/geostd")
