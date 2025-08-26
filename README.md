@@ -46,12 +46,10 @@ pixi shell -e easydocker
 ```
 
 ### Path Configuration
-Specify the `reduce2` and `geostd` paths in the `molecular_docking.py` file at line 51:
+Specify the `geostd` paths in the `molecular_docking.py` file at line 51:
 ```python
-self.reduce2_path = Path("/data/.pixi/envs/easydocker/lib/python3.10/site-packages/mmtbx/command_line/reduce2.py")
 self.geostd_path = Path("/data/geostd")
 ```
-- If using Pixi, locate `reduce2.py` in the `easydocker` environment after installation.
 - Manually clone the `geostd` repository from [https://github.com/phenix-project/geostd.git](https://github.com/phenix-project/geostd.git) and set the path accordingly.
 
 ## Usage
