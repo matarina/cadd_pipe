@@ -48,7 +48,7 @@ class MolecularDocker:
         self.original_dir = os.getcwd()
         # Convert local_pdb to absolute path if provided
         self.local_pdb = os.path.abspath(local_pdb) if local_pdb else None
-        self.reduce2_path = Path("/data/opus/.pixi/envs/pymol/lib/python3.10/site-packages/mmtbx/command_line/reduce2.py")
+        self.reduce2_path = Path("/data/opus/.pixi/envs/easydocker/lib/python3.10/site-packages/mmtbx/command_line/reduce2.py")
         self.geostd_path = Path("/data/opus/dock/geostd")
         self.rg_scale_factors = [0.8, 1.0, 1.2, 1.5]
         self.protein_scale_factors = [0.75, 1.0]
