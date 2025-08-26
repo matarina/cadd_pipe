@@ -48,7 +48,7 @@ pixi shell -e easydocker
 ### Path Configuration
 Specify the `geostd` paths in the `molecular_docking.py` file at line 51:
 ```python
-self.geostd_path = Path("/data/geostd")
+self.geostd_path = Path("/data/cadd_pipe/geostd")
 ```
 - Manually clone the `geostd` repository from [https://github.com/phenix-project/geostd.git](https://github.com/phenix-project/geostd.git) and set the path accordingly.
 
